@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+</head>
+<body>
+<title>Grainroom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen darkroom. Header, framing stage, film-edge readout, tool panel, tab bar. */
+*{box-sizing:border-box}
+:root{
+  --bg:#12161a; --surface:#1a2025; --surface2:#242c33; --line:#323c45;
+  --fg:#e8ecef; --muted:#8e9ba6; --stage:#0c0f12;
+  --accent:#f2c230; --accent-ink:#f2c230; --on-accent:#17140a;
+  --font-display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --font-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"DM Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#eceff1; --surface:#fbfcfc; --surface2:#e0e6ea; --line:#cbd3d9;
+    --fg:#14181b; --muted:#566570; --stage:#d9e0e5;
+    --accent:#f2c230; --accent-ink:#7a5800; --on-accent:#17140a;
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#eceff1; --surface:#fbfcfc; --surface2:#e0e6ea; --line:#cbd3d9;
+  --fg:#14181b; --muted:#566570; --stage:#d9e0e5;
+  --accent:#f2c230; --accent-ink:#7a5800; --on-accent:#17140a;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--font-body);-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+
+.app{height:100%;display:flex;flex-direction:column;max-width:540px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-block:10px}
+.word{display:flex;align-items:center;gap:8px;font:800 21px/1 var(--font-display);letter-spacing:-.025em}
+.word .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 28%,transparent)}
+.acts{display:flex;gap:6px}
+.btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:13px;cursor:pointer}
+.btn svg{width:16px;height:16px;flex:none}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.quiet{background:transparent}
+
+.stage{flex:1;min-height:150px;display:grid;place-items:center;background:var(--stage);border-radius:12px;overflow:hidden}
+.stagebox{position:relative}
+#cv{display:block;width:100%;height:100%}
+#cropbox{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 999px rgba(0,0,0,.58);touch-action:none;cursor:grab;
+  background-image:
+    linear-gradient(to right,transparent calc(33.33% - .5px),rgba(255,255,255,.5) calc(33.33% - .5px),rgba(255,255,255,.5) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.5) calc(66.66% - .5px),rgba(255,255,255,.5) calc(66.66% + .5px),transparent calc(66.66% + .5px)),
+    linear-gradient(to bottom,transparent calc(33.33% - .5px),rgba(255,255,255,.5) calc(33.33% - .5px),rgba(255,255,255,.5) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.5) calc(66.66% - .5px),rgba(255,255,255,.5) calc(66.66% + .5px),transparent calc(66.66% + .5px))}
+#cropbox:active{cursor:grabbing}
+
+.readout{flex:none;display:flex;justify-content:space-between;gap:10px;padding:8px 2px;
+  font:500 11px/1.3 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.readout b{font-weight:500;color:var(--accent-ink)}
+.readout span{min-width:0}
+
+.panel{flex:none;max-height:40dvh;overflow-y:auto;padding:2px 0 10px;overscroll-behavior:contain}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding-block:8px;border-top:1px solid var(--line)}
+.tab{position:relative;min-height:44px;border:0;background:transparent;color:var(--muted);font:700 14px var(--font-display);border-radius:10px;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--fg);background:var(--surface2)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:50%;bottom:5px;width:18px;height:3px;border-radius:2px;background:var(--accent);transform:translateX(-50%)}
+
+.grp{margin:12px 0 4px;font:600 11px/1 var(--font-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.grp:first-child{margin-top:4px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:500 13px var(--font-mono);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:transparent}
+
+.sl{display:block;padding:2px 0}
+.sl-top{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.sl-top output{font:500 12px var(--font-mono);color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;display:block;width:100%;height:32px;margin:0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,var(--line) var(--a,0%),var(--accent) var(--a,0%),var(--accent) var(--b,0%),var(--line) var(--b,0%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,var(--line) var(--a,0%),var(--accent) var(--a,0%),var(--accent) var(--b,0%),var(--line) var(--b,0%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;
+  background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line)}
+
+.presets{display:flex;gap:10px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin}
+.pre{flex:none;width:80px;padding:0;border:0;background:none;text-align:left;cursor:pointer}
+.pre .th{aspect-ratio:3/4;border-radius:8px;overflow:hidden;border:2px solid transparent;background:var(--surface2)}
+.pre .th canvas{display:block;width:100%;height:100%;object-fit:cover}
+.pre[aria-pressed="true"] .th{border-color:var(--accent)}
+.pre span{display:block;margin-top:5px;font-size:12px;font-weight:500}
+.pre[aria-pressed="true"] span{color:var(--accent-ink)}
+
+.coach{display:grid;gap:6px;margin-top:12px}
+.tip{padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:13px}
+.tip small{display:block;margin-bottom:2px;font:500 10.5px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.hint{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
+  padding:10px 14px;border-radius:10px;background:var(--fg);color:var(--bg);font-size:13px;font-weight:500;z-index:5}
+.sheet{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:12px;background:rgba(0,0,0,.86);
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));text-align:center;color:#eef1f3}
+.sheet img{max-width:100%;max-height:68dvh;border-radius:6px}
+.sheet p{margin:0;max-width:34ch;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="word"><span class="dot"></span>Grainroom</div>
+    <div class="acts">
+      <button class="btn" id="btnShoot" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Shoot</button>
+      <button class="btn" id="btnImport" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>Import</button>
+      <button class="btn primary" id="btnSave" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>Save</button>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="stagebox" id="stagebox">
+      <canvas id="cv" width="800" height="600"></canvas>
+      <div id="cropbox" hidden></div>
+    </div>
+  </div>
+  <div class="readout"><span id="roLeft"></span><span id="roRight"></span></div>
+
+  <section class="panel" id="p-frame" role="tabpanel" aria-label="Frame">
+    <div class="grp">Shape</div>
+    <div class="chips" id="aspects">
+      <button class="chip" type="button" data-a="3:4" aria-pressed="true">3:4</button>
+      <button class="chip" type="button" data-a="4:5" aria-pressed="false">4:5</button>
+      <button class="chip" type="button" data-a="1:1" aria-pressed="false">1:1</button>
+      <button class="chip" type="button" data-a="9:16" aria-pressed="false">9:16</button>
+      <button class="chip" type="button" data-a="full" aria-pressed="false">Full</button>
+    </div>
+    <div class="grp">Position</div>
+    <div class="row">
+      <button class="btn primary" id="btnFind" type="button">Find the shot</button>
+      <button class="btn quiet" id="btnResetFrame" type="button">Reset frame</button>
+    </div>
+    <label class="sl" style="margin-top:6px"><span class="sl-top"><span>Size</span><output id="o-zoom">100%</output></span>
+      <input type="range" id="s-zoom" min="30" max="100" step="1" value="100"></label>
+    <div class="coach" id="coach"></div>
+  </section>
+
+  <section class="panel" id="p-look" role="tabpanel" aria-label="Look" hidden>
+    <div class="grp">Film looks</div>
+    <div class="presets" id="presets"></div>
+    <div class="grp">Effects</div>
+    <div id="sl-effects"></div>
+  </section>
+
+  <section class="panel" id="p-adjust" role="tabpanel" aria-label="Adjust" hidden>
+    <div class="grp">Light</div>
+    <div id="sl-light"></div>
+    <div class="grp">Colour</div>
+    <div id="sl-color"></div>
+    <div class="row" style="margin-top:10px"><button class="btn quiet" id="btnResetAdj" type="button">Reset adjustments</button></div>
+  </section>
+
+  <section class="panel" id="p-finish" role="tabpanel" aria-label="Finish" hidden>
+    <div class="grp">Border</div>
+    <div class="chips" id="frames">
+      <button class="chip" type="button" data-f="none" aria-pressed="true">None</button>
+      <button class="chip" type="button" data-f="white" aria-pressed="false">White</button>
+      <button class="chip" type="button" data-f="paper" aria-pressed="false">Paper</button>
+      <button class="chip" type="button" data-f="black" aria-pressed="false">Black</button>
+      <button class="chip" type="button" data-f="rebate" aria-pressed="false">Rebate</button>
+      <button class="chip" type="button" data-f="specs" aria-pressed="false">Specs</button>
+    </div>
+    <div class="grp">Stamp</div>
+    <div class="chips"><button class="chip" id="stampBtn" type="button" aria-pressed="false">Date stamp</button></div>
+    <p class="hint">Save writes a JPEG of up to 3200 px on the long edge. Specs prints the film look, crop size and date under the photo.</p>
+    <div class="row" style="margin-top:10px"><button class="btn quiet" id="btnResetAll" type="button">Reset all edits</button></div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Tools">
+    <button class="tab" type="button" role="tab" data-t="frame" aria-selected="true">Frame</button>
+    <button class="tab" type="button" role="tab" data-t="look" aria-selected="false">Look</button>
+    <button class="tab" type="button" role="tab" data-t="adjust" aria-selected="false">Adjust</button>
+    <button class="tab" type="button" role="tab" data-t="finish" aria-selected="false">Finish</button>
+  </nav>
+</div>
+
+<input type="file" id="fCam" accept="image/*" capture="environment" hidden>
+<input type="file" id="fPick" accept="image/*" hidden>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="sheet" id="sheet" hidden>
+  <img id="sheetImg" alt="Finished photo">
+  <p>Press and hold the photo, then choose Download image or Save image.</p>
+  <button class="btn primary" id="sheetClose" type="button">Done</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const pad2 = n => String(n).padStart(2, '0');
+
+function rng(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------- grain tile ---------- */
+const NT = 512, noise = new Float32Array(NT * NT);
+{ const r = rng(7); for (let i = 0; i < noise.length; i++) noise[i] = (r() + r() + r() - 1.5) / 0.5; }
+
+/* ---------- looks ---------- */
+const DEF = {exp:0,contrast:0,highlights:0,shadows:0,fade:0,temp:0,tint:0,sat:0,grain:0,vig:0,hal:0,leak:0,dust:0};
+const PRESETS = [
+  {id:'natural', name:'Natural', p:{}},
+  {id:'slate', name:'Slate 800', p:{exp:-4,contrast:18,highlights:-14,shadows:10,fade:10,temp:-12,tint:-4,sat:-6,grain:38,vig:22,hal:18},
+    toneS:[-.02,.03,.06], toneH:[.04,.02,-.02], tone:.9},
+  {id:'porch', name:'Porch 400', p:{exp:6,contrast:8,highlights:-18,shadows:16,fade:22,temp:22,tint:6,sat:4,grain:46,vig:18,hal:30,dust:6},
+    toneS:[.04,.02,-.02], toneH:[.08,.04,-.05], tone:1},
+  {id:'relic', name:'Relic', p:{exp:2,contrast:-6,highlights:-24,shadows:22,fade:44,temp:16,tint:-14,sat:-18,grain:60,vig:34,hal:22,leak:55,dust:50},
+    toneS:[.02,.05,0], toneH:[.07,.05,-.06], tone:1, leakSide:'r'},
+  {id:'mono', name:'Mono 100', p:{contrast:30,highlights:-10,shadows:6,fade:8,grain:52,vig:26,hal:10,dust:12}, mono:true},
+  {id:'dusk', name:'Dusk', p:{exp:-2,contrast:14,highlights:-20,shadows:14,fade:12,temp:-6,tint:16,sat:18,grain:30,vig:30,hal:26,leak:20},
+    toneS:[.02,0,.08], toneH:[.08,.01,.02], tone:1, leakSide:'l'}
+];
+function presetLook(p){
+  return Object.assign({}, DEF, p.p, {mono:!!p.mono, toneS:p.toneS || [0,0,0], toneH:p.toneH || [0,0,0],
+    tone:p.tone || 0, leakSide:p.leakSide || 'l', preset:p.id});
+}
+
+const SLIDERS = [
+  {k:'exp', label:'Exposure', min:-100, max:100, host:'sl-light', fmt:v => (v >= 0 ? '+' : '') + (v / 50).toFixed(1) + ' EV'},
+  {k:'contrast', label:'Contrast', min:-100, max:100, host:'sl-light'},
+  {k:'highlights', label:'Highlights', min:-100, max:100, host:'sl-light'},
+  {k:'shadows', label:'Shadows', min:-100, max:100, host:'sl-light'},
+  {k:'fade', label:'Fade', min:0, max:100, host:'sl-light'},
+  {k:'temp', label:'Temperature', min:-100, max:100, host:'sl-color'},
+  {k:'tint', label:'Tint', min:-100, max:100, host:'sl-color'},
+  {k:'sat', label:'Saturation', min:-100, max:100, host:'sl-color'},
+  {k:'grain', label:'Grain', min:0, max:100, host:'sl-effects'},
+  {k:'hal', label:'Halation', min:0, max:100, host:'sl-effects'},
+  {k:'leak', label:'Light leak', min:0, max:100, host:'sl-effects'},
+  {k:'dust', label:'Dust and scratches', min:0, max:100, host:'sl-effects'},
+  {k:'vig', label:'Vignette', min:0, max:100, host:'sl-effects'}
+];
+const signed = v => (v > 0 ? '+' : '') + v;
+
+/* ---------- state ---------- */
+const S = {
+  src:null, view:null, name:'', date:new Date(), sample:true, frameNo:0, an:null,
+  aspect:'3:4', zoom:1, cx:.5, cy:.5, mode:'frame', stageIs:null, comp:null,
+  L:presetLook(PRESETS[0]), frame:'none', stamp:false, thumbsDirty:true
+};
+const ASPECTS = {'3:4':3/4, '4:5':4/5, '1:1':1, '9:16':9/16, 'full':null};
+
+const cv = $('#cv'), stage = $('#stage'), stagebox = $('#stagebox'), cropbox = $('#cropbox');
+const work = document.createElement('canvas'), tmp = document.createElement('canvas');
+
+/* ---------- sample scene ---------- */
+function sampleScene(){
+  const c = document.createElement('canvas'); c.width = 1600; c.height = 1200;
+  const x = c.getContext('2d'); const r = rng(21); let g;
+  g = x.createLinearGradient(0,0,0,780);
+  g.addColorStop(0,'#27355f'); g.addColorStop(.45,'#8a5f7a'); g.addColorStop(.75,'#e08a62'); g.addColorStop(1,'#f6c27d');
+  x.fillStyle = g; x.fillRect(0,0,1600,1200);
+  g = x.createRadialGradient(1060,730,10,1060,730,440);
+  g.addColorStop(0,'rgba(255,240,200,.95)'); g.addColorStop(.25,'rgba(255,200,130,.5)'); g.addColorStop(1,'rgba(255,170,110,0)');
+  x.fillStyle = g; x.fillRect(0,0,1600,1200);
+  x.fillStyle = '#fff4d6'; x.beginPath(); x.arc(1060,730,62,0,7); x.fill();
+  for (let i = 0; i < 16; i++){
+    x.fillStyle = 'rgba(255,200,170,' + (.06 + r() * .1) + ')';
+    x.beginPath(); x.ellipse(200 + r() * 1200, 120 + r() * 520, 120 + r() * 260, 6 + r() * 10, 0, 0, 7); x.fill();
+  }
+  g = x.createLinearGradient(0,760,0,1200);
+  g.addColorStop(0,'#c77d63'); g.addColorStop(.25,'#4d4a6d'); g.addColorStop(1,'#141b33');
+  x.fillStyle = g; x.fillRect(0,760,1600,440);
+  for (let i = 0; i < 40; i++){
+    x.fillStyle = 'rgba(255,226,170,' + Math.max(.04, .5 - i * .011) + ')';
+    const w = Math.max(20, 150 - i * 2.8);
+    x.fillRect(1060 - w / 2 + (r() - .5) * 40, 770 + i * 10, w, 3 + r() * 3);
+  }
+  x.fillStyle = '#3b2f4d'; x.beginPath(); x.moveTo(0,760); x.lineTo(0,700); x.quadraticCurveTo(200,640,420,735); x.lineTo(420,760); x.fill();
+  x.fillStyle = '#1a1424'; x.beginPath(); x.moveTo(250,890); x.quadraticCurveTo(340,765,430,748); x.quadraticCurveTo(520,765,610,890); x.fill();
+  x.fillStyle = '#231a2c'; x.beginPath(); x.moveTo(405,752); x.lineTo(418,520); x.lineTo(452,520); x.lineTo(465,752); x.fill();
+  x.fillRect(406,500,56,22);
+  g = x.createRadialGradient(434,485,5,434,485,150);
+  g.addColorStop(0,'rgba(255,225,150,.65)'); g.addColorStop(1,'rgba(255,200,120,0)');
+  x.fillStyle = g; x.fillRect(250,330,370,320);
+  x.fillStyle = '#ffd98a'; x.fillRect(420,470,28,30);
+  x.fillStyle = '#231a2c'; x.beginPath(); x.moveTo(412,470); x.lineTo(434,438); x.lineTo(456,470); x.fill();
+  x.strokeStyle = 'rgba(30,20,40,.8)'; x.lineWidth = 3; x.lineCap = 'round';
+  [[760,300],[820,340],[880,290],[700,360]].forEach(p => {
+    x.beginPath(); x.moveTo(p[0] - 16, p[1] - 6); x.quadraticCurveTo(p[0] - 6, p[1] - 14, p[0], p[1]); x.quadraticCurveTo(p[0] + 6, p[1] - 14, p[0] + 16, p[1] - 6); x.stroke();
+  });
+  return c;
+}
+
+/* ---------- analysis ---------- */
+function analyze(src){
+  const W = 96, H = Math.max(8, Math.round(96 * src.height / src.width));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', {willReadFrequently:true}); x.drawImage(src, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data, n = W * H;
+  const lum = new Float32Array(n), sat = new Float32Array(n);
+  let sum = 0, clip = 0, dark = 0;
+  for (let i = 0, p = 0; p < n; p++, i += 4){
+    const r = d[i] / 255, g = d[i+1] / 255, b = d[i+2] / 255;
+    const l = .2126 * r + .7152 * g + .0722 * b;
+    lum[p] = l; sum += l; if (l > .96) clip++; if (l < .04) dark++;
+    sat[p] = Math.max(r,g,b) - Math.min(r,g,b);
+  }
+  const mean = sum / n, sal = new Float32Array(n);
+  let tot = 0, mx = 0, my = 0;
+  for (let y = 1; y < H - 1; y++) for (let xx = 1; xx < W - 1; xx++){
+    const i = y * W + xx;
+    const gx = lum[i+1] - lum[i-1], gy = lum[i+W] - lum[i-W];
+    let s = Math.hypot(gx, gy) * 2 + Math.abs(lum[i] - mean) * .8 + sat[i] * .3;
+    s *= 1 - .5 * Math.min(1, Math.hypot(xx / W - .5, y / H - .5) * 1.4);
+    s *= s; sal[i] = s; tot += s; mx += s * xx; my += s * y;
+  }
+  tot = tot || 1;
+  const cx = mx / tot / W, cy = my / tot / H;
+  let vx = 0, vy = 0;
+  for (let y = 1; y < H - 1; y++) for (let xx = 1; xx < W - 1; xx++){
+    const s = sal[y * W + xx]; vx += s * (xx / W - cx) ** 2; vy += s * (y / H - cy) ** 2;
+  }
+  return {mean, clip:clip / n, dark:dark / n, cx, cy, sx:Math.sqrt(vx / tot), sy:Math.sqrt(vy / tot)};
+}
+
+/* ---------- crop ---------- */
+function aspectVal(){ return ASPECTS[S.aspect] || (S.src.width / S.src.height); }
+function cropRect(){
+  const sw = S.src.width, sh = S.src.height, A = aspectVal();
+  let mw, mh; if (sw / sh > A){ mh = sh; mw = sh * A; } else { mw = sw; mh = sw / A; }
+  const w = mw * S.zoom, h = mh * S.zoom;
+  const x = clamp(S.cx * sw - w / 2, 0, sw - w), y = clamp(S.cy * sh - h / 2, 0, sh - h);
+  return {x, y, w, h};
+}
+function normalizeCenter(){
+  const r = cropRect(); S.cx = (r.x + r.w / 2) / S.src.width; S.cy = (r.y + r.h / 2) / S.src.height;
+}
+function autoFrame(){
+  const a = S.an, sw = S.src.width, sh = S.src.height, A = aspectVal();
+  let mw, mh; if (sw / sh > A){ mh = sh; mw = sh * A; } else { mw = sw; mh = sw / A; }
+  const z = clamp(.3 + Math.max(a.sx, a.sy) * 3.2, .5, 1);
+  const cw = mw * z, ch = mh * z;
+  const tx = Math.abs(a.cx - .5) < .08 ? .5 : (a.cx < .5 ? 1/3 : 2/3);
+  const ty = Math.abs(a.cy - .5) < .08 ? .5 : (a.cy < .5 ? 1/3 : 2/3);
+  S.zoom = z;
+  S.cx = (a.cx * sw - tx * cw + cw / 2) / sw; S.cy = (a.cy * sh - ty * ch + ch / 2) / sh;
+  normalizeCenter();
+  const vx = tx < .4 ? 'left' : tx > .6 ? 'right' : 'centre', vy = ty < .4 ? 'upper' : ty > .6 ? 'lower' : 'middle';
+  S.comp = {
+    focus:'Detected focus at ' + Math.round(a.cx * 100) + '% across and ' + Math.round(a.cy * 100) + '% down.',
+    place:(vx === 'centre' && vy === 'middle') ? 'Subject centred in the frame.' : 'Subject set on the ' + vy + '-' + vx + ' thirds point.',
+    size:'Frame set to ' + Math.round(z * 100) + '% of the widest crop for this shape.'
+  };
+  S.thumbsDirty = true;
+}
+
+/* ---------- develop ---------- */
+function renderPhoto(out, r, pw, ph, L, stamp){
+  out.width = pw; out.height = ph;
+  const x = out.getContext('2d', {willReadFrequently:true});
+  x.drawImage(S.src, r.x, r.y, r.w, r.h, 0, 0, pw, ph);
+  const img = x.getImageData(0, 0, pw, ph), d = img.data, n = pw * ph;
+  const ev = Math.pow(2, L.exp / 50), ct = 1 + L.contrast / 100 * .8;
+  const hiK = L.highlights / 100 * .4, shK = L.shadows / 100 * .4, fd = L.fade / 100 * .16;
+  const sa = 1 + L.sat / 100, tw = L.temp / 100, ti = L.tint / 100;
+  const ts = L.toneS, th = L.toneH, ta = L.tone, mono = L.mono;
+  const ga = L.grain / 100 * .13, gs = Math.max(1, Math.round(pw / 1000));
+  let px = 0, py = 0;
+  for (let p = 0, i = 0; p < n; p++, i += 4){
+    let r1 = d[i] / 255, g1 = d[i+1] / 255, b1 = d[i+2] / 255;
+    r1 *= ev * (1 + tw * .22) * (1 + ti * .04); b1 *= ev * (1 - tw * .22) * (1 + ti * .04); g1 *= ev * (1 - ti * .12);
+    let l = .2126 * r1 + .7152 * g1 + .0722 * b1;
+    const lc = l < 0 ? 0 : l > 1 ? 1 : l;
+    const a = shK * (1 - lc) * (1 - lc) + hiK * lc * lc;
+    r1 += a; g1 += a; b1 += a;
+    r1 = (r1 - .5) * ct + .5; g1 = (g1 - .5) * ct + .5; b1 = (b1 - .5) * ct + .5;
+    if (fd){ r1 = fd + r1 * (1 - fd); g1 = fd + g1 * (1 - fd); b1 = fd + b1 * (1 - fd); }
+    l = .2126 * r1 + .7152 * g1 + .0722 * b1;
+    if (mono){ r1 = g1 = b1 = l; }
+    else if (sa !== 1){ r1 = l + (r1 - l) * sa; g1 = l + (g1 - l) * sa; b1 = l + (b1 - l) * sa; }
+    if (ta){
+      const t = l < 0 ? 0 : l > 1 ? 1 : l, ws = (1 - t) * ta, wh = t * ta;
+      r1 += ts[0] * ws + th[0] * wh; g1 += ts[1] * ws + th[1] * wh; b1 += ts[2] * ws + th[2] * wh;
+    }
+    if (ga){
+      const m = 1 - Math.abs(l * 2 - 1) * .5;
+      const v = noise[(((py / gs) | 0) & 511) * 512 + (((px / gs) | 0) & 511)] * ga * m;
+      r1 += v; g1 += v; b1 += v;
+    }
+    d[i] = r1 * 255; d[i+1] = g1 * 255; d[i+2] = b1 * 255;
+    if (++px === pw){ px = 0; py++; }
+  }
+  x.putImageData(img, 0, 0);
+
+  if (L.hal > 0 && 'filter' in x){
+    tmp.width = pw; tmp.height = ph;
+    const t = tmp.getContext('2d');
+    t.filter = 'brightness(.8) contrast(2.6) blur(' + Math.max(2, pw * .012) + 'px)';
+    t.drawImage(out, 0, 0); t.filter = 'none';
+    t.globalCompositeOperation = 'multiply'; t.fillStyle = 'rgb(255,92,48)'; t.fillRect(0, 0, pw, ph);
+    x.globalCompositeOperation = 'screen'; x.globalAlpha = L.hal / 100 * .75; x.drawImage(tmp, 0, 0);
+    x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  }
+  if (L.leak > 0){
+    const a = L.leak / 100, right = L.leakSide === 'r', ox = right ? pw : 0;
+    const lg = x.createLinearGradient(ox, 0, right ? pw * .45 : pw * .55, 0);
+    lg.addColorStop(0, 'rgba(255,110,40,' + .85 * a + ')'); lg.addColorStop(.5, 'rgba(255,60,90,' + .35 * a + ')'); lg.addColorStop(1, 'rgba(255,60,90,0)');
+    x.globalCompositeOperation = 'screen'; x.fillStyle = lg; x.fillRect(0, 0, pw, ph);
+    const rg = x.createRadialGradient(ox, ph * .2, 0, ox, ph * .2, ph * .5);
+    rg.addColorStop(0, 'rgba(255,200,90,' + .6 * a + ')'); rg.addColorStop(1, 'rgba(255,200,90,0)');
+    x.fillStyle = rg; x.fillRect(0, 0, pw, ph);
+    x.globalCompositeOperation = 'source-over';
+  }
+  if (L.vig > 0){
+    const rg = x.createRadialGradient(pw / 2, ph / 2, Math.min(pw, ph) * .25, pw / 2, ph / 2, Math.hypot(pw, ph) / 2);
+    rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,0,0,' + L.vig / 100 * .8 + ')');
+    x.fillStyle = rg; x.fillRect(0, 0, pw, ph);
+  }
+  if (L.dust > 0){
+    const rr = rng(99), sc = pw / 1000, cnt = Math.round(L.dust / 100 * 70);
+    x.fillStyle = '#fff';
+    for (let i = 0; i < cnt; i++){
+      x.globalAlpha = .25 + rr() * .6; x.beginPath(); x.arc(rr() * pw, rr() * ph, (.6 + rr() * 2) * sc, 0, 7); x.fill();
+    }
+    x.strokeStyle = '#fff'; x.lineWidth = Math.max(1, sc * .8);
+    const sc2 = Math.round(L.dust / 100 * 4);
+    for (let i = 0; i < sc2; i++){
+      const sx = rr() * pw; x.globalAlpha = .18 + rr() * .25;
+      x.beginPath(); x.moveTo(sx, rr() * ph * .4); x.lineTo(sx + (rr() - .5) * 6 * sc, ph * (.5 + rr() * .5)); x.stroke();
+    }
+    x.globalAlpha = 1;
+  }
+  if (stamp){
+    const fs = Math.round(Math.min(pw, ph) * .045);
+    x.font = '500 ' + fs + 'px "DM Mono", ui-monospace, monospace'; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+    x.fillStyle = '#ff9a2e'; x.shadowColor = 'rgba(255,120,20,.9)'; x.shadowBlur = fs * .45;
+    x.fillText(stampText(), pw - fs * .9, ph - fs * .9); x.shadowBlur = 0;
+  }
+}
+function stampText(){
+  const d = S.date; return "'" + pad2(d.getFullYear() % 100) + '  ' + pad2(d.getMonth() + 1) + '  ' + pad2(d.getDate());
+}
+function dateText(){ const d = S.date; return pad2(d.getDate()) + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); }
+function lookName(){ const p = PRESETS.find(q => q.id === S.L.preset); return p ? p.name : 'Custom'; }
+
+function composeFrame(out, photo, pw, ph){
+  const u = Math.round(Math.min(pw, ph) * .05);
+  let l = 0, t = 0, r = 0, b = 0, bg = '#fff';
+  switch (S.frame){
+    case 'white': l = t = r = b = u; bg = '#f5f4ef'; break;
+    case 'paper': l = t = r = u; b = Math.round(u * 3.2); bg = '#e9e2d3'; break;
+    case 'black': l = t = r = b = Math.round(u * .9); bg = '#0a0a0a'; break;
+    case 'rebate': l = r = Math.round(u * .8); t = b = u * 2; bg = '#15100c'; break;
+    case 'specs': l = t = r = u; b = Math.round(u * 3.4); bg = '#f5f4ef'; break;
+  }
+  out.width = pw + l + r; out.height = ph + t + b;
+  const x = out.getContext('2d');
+  if (S.frame === 'none'){ x.drawImage(photo, 0, 0); return; }
+  x.fillStyle = bg; x.fillRect(0, 0, out.width, out.height);
+  x.drawImage(photo, l, t);
+  const fs = Math.max(8, Math.round(u * .42));
+  x.font = '500 ' + fs + 'px "DM Mono", ui-monospace, monospace'; x.textBaseline = 'middle';
+  if (S.frame === 'rebate'){
+    x.fillStyle = '#e2873a'; x.textAlign = 'left';
+    const line = '▸ 14    ▸ 14A    ▸ 15    GRAINROOM 400    ▸ 15A    ▸ 16';
+    x.fillText(line, l, t / 2); x.fillText(line, l, t + ph + b / 2);
+  }
+  if (S.frame === 'specs'){
+    const rc = cropRect();
+    x.fillStyle = '#1b1d1f'; x.textAlign = 'left';
+    x.fillText('GRAINROOM / ' + lookName().toUpperCase(), l, t + ph + b * .36);
+    x.fillStyle = '#5d666d';
+    x.fillText(S.aspect.toUpperCase() + ' / ' + Math.round(rc.w) + ' x ' + Math.round(rc.h) + ' / ' + dateText(), l, t + ph + b * .62);
+    x.textAlign = 'right'; x.fillStyle = '#1b1d1f';
+    x.fillText('No. ' + pad2(Math.max(1, S.frameNo)), l + pw, t + ph + b * .36);
+  }
+}
+function renderFinal(out, maxEdge){
+  const r = cropRect(), k = Math.min(1, maxEdge / Math.max(r.w, r.h));
+  const pw = Math.max(8, Math.round(r.w * k)), ph = Math.max(8, Math.round(r.h * k));
+  renderPhoto(work, r, pw, ph, S.L, S.stamp);
+  composeFrame(out, work, pw, ph);
+}
+
+/* ---------- stage ---------- */
+function layoutStage(){
+  const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return;
+  const ar = cv.width / cv.height; let w = W, h = W / ar;
+  if (h > H){ h = H; w = H * ar; }
+  stagebox.style.width = Math.floor(w) + 'px'; stagebox.style.height = Math.floor(h) + 'px';
+}
+let raf = 0;
+function schedule(){ if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
+function draw(){
+  if (!S.src) return;
+  if (S.mode === 'frame'){
+    if (S.stageIs !== S.view){
+      cv.width = S.view.width; cv.height = S.view.height;
+      cv.getContext('2d').drawImage(S.view, 0, 0); S.stageIs = S.view; layoutStage();
+    }
+    const r = cropRect(), sw = S.src.width, sh = S.src.height;
+    cropbox.hidden = false;
+    cropbox.style.left = r.x / sw * 100 + '%'; cropbox.style.top = r.y / sh * 100 + '%';
+    cropbox.style.width = r.w / sw * 100 + '%'; cropbox.style.height = r.h / sh * 100 + '%';
+  } else {
+    cropbox.hidden = true; S.stageIs = null;
+    renderFinal(cv, 900); layoutStage();
+  }
+  updateReadout();
+}
+function updateReadout(){
+  const r = cropRect();
+  $('#roLeft').innerHTML = 'Frame <b>' + pad2(S.frameNo) + '</b> / ' + S.aspect + ' / ' + Math.round(r.w) + ' x ' + Math.round(r.h);
+  $('#roRight').textContent = S.sample ? 'Sample scene' : S.name.slice(0, 22);
+}
+
+/* ---------- loading ---------- */
+function setSource(img, name, date, sample){
+  const k = Math.min(1, 3200 / Math.max(img.width, img.height));
+  let src = img;
+  if (k < 1){
+    src = document.createElement('canvas'); src.width = Math.round(img.width * k); src.height = Math.round(img.height * k);
+    src.getContext('2d').drawImage(img, 0, 0, src.width, src.height);
+  }
+  const k2 = Math.min(1, 1000 / Math.max(src.width, src.height));
+  const view = document.createElement('canvas'); view.width = Math.round(src.width * k2); view.height = Math.round(src.height * k2);
+  view.getContext('2d').drawImage(src, 0, 0, view.width, view.height);
+  Object.assign(S, {src, view, name, date, sample, an:analyze(src), zoom:1, cx:.5, cy:.5, comp:null, stageIs:null, thumbsDirty:true});
+  S.frameNo = sample ? 0 : S.frameNo + 1;
+  normalizeCenter(); syncFrameUI(); renderCoach(); setMode('frame'); schedule();
+}
+async function loadFile(file){
+  if (!file) return;
+  toast('Opening photo');
+  try {
+    const bmp = await createImageBitmap(file, {imageOrientation:'from-image'});
+    setSource(bmp, file.name.replace(/\.[^.]+$/, '') || 'Photo', new Date(file.lastModified || Date.now()), false);
+    toast('Photo ready');
+  } catch (e){ toast('That file could not be opened. Try a JPEG or PNG.'); }
+}
+
+/* ---------- UI ---------- */
+let toastT = 0;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2400);
+}
+function setMode(m){
+  S.mode = m;
+  $$('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === m)));
+  ['frame','look','adjust','finish'].forEach(n => { $('#p-' + n).hidden = n !== m; });
+  if (m === 'look' && S.thumbsDirty) makeThumbs();
+  S.stageIs = null; schedule();
+}
+function setRange(el, v, min, max){
+  el.value = v;
+  const pct = (v - min) / (max - min) * 100;
+  const zero = (0 - min) / (max - min) * 100;
+  const bip = min < 0;
+  el.style.setProperty('--a', (bip ? Math.min(zero, pct) : 0) + '%');
+  el.style.setProperty('--b', (bip ? Math.max(zero, pct) : pct) + '%');
+}
+const sliderEls = {};
+function buildSliders(){
+  SLIDERS.forEach(s => {
+    const lab = document.createElement('label'); lab.className = 'sl';
+    lab.innerHTML = '<span class="sl-top"><span>' + s.label + '</span><output></output></span><input type="range" id="s-' + s.k + '" min="' + s.min + '" max="' + s.max + '" step="1">';
+    $('#' + s.host).appendChild(lab);
+    const inp = $('input', lab), out = $('output', lab);
+    sliderEls[s.k] = {inp, out, s};
+    inp.addEventListener('input', () => {
+      S.L[s.k] = +inp.value; paintSlider(s.k); schedule();
+    });
+  });
+}
+function paintSlider(k){
+  const {inp, out, s} = sliderEls[k], v = S.L[k];
+  setRange(inp, v, s.min, s.max);
+  out.textContent = s.fmt ? s.fmt(v) : (s.min < 0 ? signed(v) : String(v));
+}
+function syncSliders(){ SLIDERS.forEach(s => paintSlider(s.k)); }
+function syncFrameUI(){
+  $$('#aspects .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.a === S.aspect)));
+  setRange($('#s-zoom'), Math.round(S.zoom * 100), 30, 100);
+  $('#o-zoom').textContent = Math.round(S.zoom * 100) + '%';
+}
+function syncPresets(){ $$('.pre').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === S.L.preset))); }
+function syncFinish(){
+  $$('#frames .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.f === S.frame)));
+  $('#stampBtn').setAttribute('aria-pressed', String(S.stamp));
+}
+function renderCoach(){
+  const a = S.an, box = $('#coach'); box.innerHTML = '';
+  const add = (h, t) => { const d = document.createElement('div'); d.className = 'tip'; d.innerHTML = '<small>' + h + '</small>' + t; box.appendChild(d); };
+  if (S.sample) add('Sample', 'This is a sample scene. Use Shoot or Import to work on your own photo.');
+  if (S.comp){ add('Composition', S.comp.place + ' ' + S.comp.size); add('Focus', S.comp.focus); }
+  else add('Composition', 'Press Find the shot to place the subject on a thirds point, or drag the frame yourself.');
+  let adv = 'Exposure looks balanced.';
+  if (a.clip > .04) adv = 'Highlights are clipping. Pull Highlights down in Adjust.';
+  else if (a.mean < .3) adv = 'The scene reads dark. Try about +0.5 EV in Adjust.';
+  else if (a.mean > .72) adv = 'The scene reads bright. Try about -0.5 EV in Adjust.';
+  add('Light', 'Mean ' + Math.round(a.mean * 100) + '%, highlights clipped ' + (a.clip * 100).toFixed(1) + '%, shadows crushed ' + (a.dark * 100).toFixed(1) + '%. ' + adv);
+}
+
+/* ---------- preset thumbs ---------- */
+const thumbs = {};
+function buildPresets(){
+  PRESETS.forEach(p => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pre'; b.dataset.id = p.id; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<div class="th"><canvas width="80" height="106"></canvas></div><span>' + p.name + '</span>';
+    thumbs[p.id] = $('canvas', b);
+    b.addEventListener('click', () => {
+      S.L = presetLook(p); syncSliders(); syncPresets(); schedule();
+    });
+    $('#presets').appendChild(b);
+  });
+}
+function makeThumbs(){
+  if (!S.src) return;
+  S.thumbsDirty = false;
+  const r = cropRect(), k = Math.min(1, 120 / Math.max(r.w, r.h));
+  const tw = Math.max(8, Math.round(r.w * k)), th = Math.max(8, Math.round(r.h * k));
+  PRESETS.forEach(p => renderPhoto(thumbs[p.id], r, tw, th, presetLook(p), false));
+}
+
+/* ---------- save ---------- */
+async function save(){
+  if (!S.src) return;
+  toast('Developing full size');
+  await new Promise(r => setTimeout(r, 30));
+  const out = document.createElement('canvas');
+  let blob = null;
+  for (const edge of [3200, 2048]){
+    renderFinal(out, edge);
+    blob = await new Promise(res => out.toBlob(res, 'image/jpeg', .92));
+    if (blob) break;
+  }
+  if (!blob){ toast('This photo is too large to save here. Try a smaller crop.'); return; }
+  const d = S.date, fname = 'grainroom-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(Math.max(1, S.frameNo)) + '.jpg';
+  const cap = window.Capacitor;
+  if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Filesystem && cap.Plugins.Share){
+    try {
+      const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(blob); });
+      const w = await cap.Plugins.Filesystem.writeFile({path:fname, data:b64, directory:'CACHE'});
+      await cap.Plugins.Share.share({title:'Grainroom photo', files:[w.uri], dialogTitle:'Save or share photo'});
+      return;
+    } catch (e) { if (e && /cancel/i.test(String(e.message || e))) return; }
+  }
+  let dl = null;
+  try { if (window.claude && window.claude.use) dl = await window.claude.use('downloads'); } catch (e) { dl = null; }
+  if (dl){
+    try { await dl.save({filename:fname, data:blob}); toast('Saved'); return; }
+    catch (e){ if (e && e.code === 'declined') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  $('#sheetImg').src = url; $('#sheet').hidden = false; $('#sheet').dataset.url = url;
+}
+
+/* ---------- events ---------- */
+$('#btnShoot').addEventListener('click', () => $('#fCam').click());
+$('#btnImport').addEventListener('click', () => $('#fPick').click());
+['#fCam', '#fPick'].forEach(id => $(id).addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; }));
+$('#btnSave').addEventListener('click', save);
+$('#sheetClose').addEventListener('click', () => {
+  const s = $('#sheet'); s.hidden = true; if (s.dataset.url) URL.revokeObjectURL(s.dataset.url); $('#sheetImg').removeAttribute('src');
+});
+$$('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.t)));
+$$('#aspects .chip').forEach(c => c.addEventListener('click', () => {
+  S.aspect = c.dataset.a; normalizeCenter(); S.thumbsDirty = true; S.comp = null; syncFrameUI(); renderCoach(); schedule();
+}));
+$('#s-zoom').addEventListener('input', e => {
+  S.zoom = +e.target.value / 100; normalizeCenter(); S.thumbsDirty = true; syncFrameUI(); schedule();
+});
+$('#btnFind').addEventListener('click', () => { autoFrame(); syncFrameUI(); renderCoach(); schedule(); });
+$('#btnResetFrame').addEventListener('click', () => {
+  S.zoom = 1; S.cx = .5; S.cy = .5; S.comp = null; normalizeCenter(); S.thumbsDirty = true; syncFrameUI(); renderCoach(); schedule();
+});
+$$('#frames .chip').forEach(c => c.addEventListener('click', () => { S.frame = c.dataset.f; syncFinish(); schedule(); }));
+$('#stampBtn').addEventListener('click', () => { S.stamp = !S.stamp; syncFinish(); schedule(); });
+$('#btnResetAdj').addEventListener('click', () => {
+  ['exp','contrast','highlights','shadows','fade','temp','tint','sat'].forEach(k => { S.L[k] = 0; }); syncSliders(); schedule();
+});
+$('#btnResetAll').addEventListener('click', () => {
+  S.L = presetLook(PRESETS[0]); S.frame = 'none'; S.stamp = false; syncSliders(); syncPresets(); syncFinish(); schedule();
+});
+
+let drag = null;
+cropbox.addEventListener('pointerdown', e => {
+  cropbox.setPointerCapture(e.pointerId); drag = {x:e.clientX, y:e.clientY, cx:S.cx, cy:S.cy};
+});
+cropbox.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const b = stagebox.getBoundingClientRect();
+  S.cx = drag.cx + (e.clientX - drag.x) / b.width; S.cy = drag.cy + (e.clientY - drag.y) / b.height;
+  normalizeCenter(); S.thumbsDirty = true; schedule();
+});
+['pointerup', 'pointercancel'].forEach(t => cropbox.addEventListener(t, () => { drag = null; }));
+new ResizeObserver(layoutStage).observe(stage);
+
+/* ---------- start ---------- */
+buildSliders(); buildPresets(); syncSliders(); syncPresets(); syncFinish();
+setSource(sampleScene(), 'Sample scene', new Date(), true);
+})();
+</script>
+
+</body>
+</html>
